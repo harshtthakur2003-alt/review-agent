@@ -1,0 +1,297 @@
+{
+  "goal": "Review the code quality of https://github.com/pallets/flask",
+  "status": "partial",
+  "llm": "offline-heuristic",
+  "repository": {
+    "full_name": "pallets/flask",
+    "default_branch": "main",
+    "url": "https://github.com/pallets/flask"
+  },
+  "quality_score": 82.3,
+  "files_reviewed": [
+    "src/flask/sansio/app.py",
+    "src/flask/cli.py",
+    "src/flask/sansio/scaffold.py",
+    "src/flask/sansio/blueprints.py",
+    "src/flask/helpers.py",
+    "src/flask/ctx.py",
+    "src/flask/sessions.py",
+    "src/flask/config.py"
+  ],
+  "metrics": {
+    "files_analyzed": 7,
+    "loc": 3386,
+    "issue_count": 38,
+    "by_severity": {
+      "high": 2,
+      "medium": 18,
+      "low": 18
+    },
+    "by_code": {
+      "missing_docstring": 18,
+      "high_complexity": 5,
+      "long_function": 7,
+      "too_many_args": 3,
+      "swallowed_exception": 3,
+      "eval_exec": 2
+    }
+  },
+  "worst_files": [
+    {
+      "path": "src/flask/cli.py",
+      "issues": 18,
+      "loc": 825
+    },
+    {
+      "path": "src/flask/helpers.py",
+      "issues": 5,
+      "loc": 510
+    },
+    {
+      "path": "src/flask/sansio/blueprints.py",
+      "issues": 4,
+      "loc": 557
+    }
+  ],
+  "top_issues": [
+    {
+      "code": "eval_exec",
+      "severity": "high",
+      "path": "src/flask/cli.py",
+      "line": 1022,
+      "detail": "call to eval()"
+    },
+    {
+      "code": "eval_exec",
+      "severity": "high",
+      "path": "src/flask/config.py",
+      "line": 209,
+      "detail": "call to exec()"
+    },
+    {
+      "code": "high_complexity",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 41,
+      "detail": "find_best_app() cyclomatic complexity ~12 (limit 10)"
+    },
+    {
+      "code": "long_function",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 120,
+      "detail": "find_app_by_string() is 78 lines (limit 60)"
+    },
+    {
+      "code": "high_complexity",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 120,
+      "detail": "find_app_by_string() cyclomatic complexity ~14 (limit 10)"
+    },
+    {
+      "code": "long_function",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 698,
+      "detail": "load_dotenv() is 66 lines (limit 60)"
+    },
+    {
+      "code": "high_complexity",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 698,
+      "detail": "load_dotenv() cyclomatic complexity ~13 (limit 10)"
+    },
+    {
+      "code": "too_many_args",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 934,
+      "detail": "run_command() takes 9 parameters"
+    },
+    {
+      "code": "swallowed_exception",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 1035,
+      "detail": "exception caught and silently ignored (pass)"
+    },
+    {
+      "code": "high_complexity",
+      "severity": "medium",
+      "path": "src/flask/cli.py",
+      "line": 1060,
+      "detail": "routes_command() cyclomatic complexity ~18 (limit 10)"
+    }
+  ],
+  "suggested_fixes": [
+    {
+      "issue": "missing_docstring",
+      "occurrences": 18,
+      "suggested_fix": "Add short docstrings to public modules/classes/functions."
+    },
+    {
+      "issue": "long_function",
+      "occurrences": 7,
+      "suggested_fix": "Extract cohesive blocks into helpers; aim for functions that fit on one screen."
+    },
+    {
+      "issue": "high_complexity",
+      "occurrences": 5,
+      "suggested_fix": "Split into smaller functions / early returns to reduce branching."
+    },
+    {
+      "issue": "too_many_args",
+      "occurrences": 3,
+      "suggested_fix": "Group related parameters into a dataclass or config object."
+    },
+    {
+      "issue": "swallowed_exception",
+      "occurrences": 3,
+      "suggested_fix": "Log the exception or re-raise; silent `pass` hides real bugs."
+    },
+    {
+      "issue": "eval_exec",
+      "occurrences": 2,
+      "suggested_fix": "Replace eval/exec with ast.literal_eval or an explicit dispatch table."
+    }
+  ],
+  "plan": {
+    "reasoning": "The goal is a code-quality review of a GitHub repository. I must (1) resolve the repo and its default branch, (2) enumerate Python files, (3) pick a bounded, representative sample of source files, (4) fetch and statically analyse each, (5) aggregate, (6) compute a score, then report.",
+    "assumptions": [
+      "Only Python files are reviewed.",
+      "A sample of the largest non-test source files is analysed (bounded cost) rather than the whole repository.",
+      "Analysis is static (AST); code is never executed."
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "description": "Resolve repository and default branch",
+        "tool": "repo_info"
+      },
+      {
+        "id": "s2",
+        "description": "List Python files on the default branch",
+        "tool": "repo_list_files"
+      },
+      {
+        "id": "s3",
+        "description": "Select a representative sample of source files",
+        "tool": "select_python_files"
+      },
+      {
+        "id": "s4",
+        "description": "Fetch each selected file",
+        "tool": "repo_read_file"
+      },
+      {
+        "id": "s5",
+        "description": "Statically analyse each file",
+        "tool": "analyze_code"
+      },
+      {
+        "id": "s6",
+        "description": "Aggregate findings",
+        "tool": "summarize_findings"
+      },
+      {
+        "id": "s7",
+        "description": "Compute weighted issues per 1,000 LOC",
+        "tool": "calculator"
+      },
+      {
+        "id": "s8",
+        "description": "Derive 0-100 quality score",
+        "tool": "calculator"
+      }
+    ]
+  },
+  "execution": [
+    {
+      "step": "s1",
+      "status": "ok",
+      "attempts": 1,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    },
+    {
+      "step": "s2",
+      "status": "ok",
+      "attempts": 3,
+      "note": "",
+      "errors": [
+        "[transient] repo_list_files: timed out (INJECTED fault)",
+        "[transient] repo_list_files: timed out (INJECTED fault)"
+      ],
+      "recoveries": [
+        "transient error -> retry in 0.5s (exponential backoff)",
+        "transient error -> retry in 1.0s (exponential backoff)"
+      ]
+    },
+    {
+      "step": "s3",
+      "status": "ok",
+      "attempts": 1,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    },
+    {
+      "step": "s4",
+      "status": "partial",
+      "attempts": 10,
+      "note": "1/8 items failed and were excluded",
+      "errors": [
+        "s4[1/8]: [invalid_output] repo_read_file: response missing keys ['text']",
+        "s4[1/8]: [rate_limited] repo_read_file: HTTP 429 (INJECTED fault)",
+        "s4[1/8]: [not_found] repo_read_file: HTTP 404 (INJECTED fault)"
+      ],
+      "recoveries": [
+        "invalid_output error -> retry in 0.5s (exponential backoff)",
+        "rate_limited error -> retry in 1.0s (exponential backoff)"
+      ]
+    },
+    {
+      "step": "s5",
+      "status": "ok",
+      "attempts": 7,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    },
+    {
+      "step": "s6",
+      "status": "ok",
+      "attempts": 1,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    },
+    {
+      "step": "s7",
+      "status": "ok",
+      "attempts": 1,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    },
+    {
+      "step": "s8",
+      "status": "ok",
+      "attempts": 1,
+      "note": "",
+      "errors": [],
+      "recoveries": []
+    }
+  ],
+  "failed_or_skipped": [],
+  "limitations": [
+    "Static AST heuristics only: no type checking, no test execution, no data-flow analysis.",
+    "Only a bounded sample of the largest non-test source files is reviewed, so the score is an estimate.",
+    "Score = 100 - (weighted issues per 1,000 LOC); severity weights (3/2/1) are a judgement call, not a standard.",
+    "Cyclomatic complexity is approximated by counting branch nodes."
+  ],
+  "summary": null
+}

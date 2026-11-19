@@ -1,3 +1,0 @@
-[  0.00s] INFO  Goal: make my code better
-[  0.00s] INFO  Backend: offline-heuristic; tools: analyze_code, calculator, repo_info, repo_list_files, repo_read_file, repo_search, select_python_files, summarize_findings
-[  0.00s] DONE  Cannot plan: No GitHub repository URL or owner/name found in the goal. Please provide one, e.g. 'Review https://github.com/pallets/markupsafe'.

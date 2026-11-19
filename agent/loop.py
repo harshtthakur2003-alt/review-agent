@@ -199,13 +199,24 @@ class Agent:
     def _complete(self, msgs: list, tools: list):
         """Call the model inside the context budget. If the provider still says the request is too large
         (HTTP 413 / context or token-per-minute limit), shrink the budget and compact harder, then retry."""
-        for attempt in range(4):
+        bad_calls = 0
+        for attempt in range(6):
             self._compact(msgs, keep_recent=2 if attempt == 0 else 0, stub=250 if attempt < 2 else 120)
             try:
                 return self.llm.complete(SYSTEM_PROMPT, msgs, tools)
             except LLMError as e:
                 text = str(e).lower()
-                if attempt == 3 or not ("413" in text or "too large" in text or "context length" in text
+                if ("tool_use_failed" in text or "tool call validation failed" in text) and bad_calls < 3:
+                    # The provider rejected a malformed tool call the model produced (e.g. an invented tool name).
+                    # Tell the model exactly what went wrong and let it try again.
+                    bad_calls += 1
+                    names = ", ".join(t["name"] for t in tools)
+                    self.t.emit("recover", f"model produced an invalid tool call (attempt {bad_calls}); asking it to retry")
+                    msgs.append({"role": "user", "content": f"Your previous reply was rejected by the API: {str(e)[:300]}. "
+                                 f"Respond again with a single call to one of these tools, using its exact name and "
+                                 f"JSON arguments matching its schema: {names}."})
+                    continue
+                if attempt >= 5 or not ("413" in text or "too large" in text or "context length" in text
                                         or "maximum context" in text or "reduce" in text):
                     raise
                 self.context_chars = max(3000, int(self.context_chars * 0.5))

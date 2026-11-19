@@ -28,6 +28,8 @@ def main(argv=None) -> int:
     p.add_argument("--max-turns", type=int, default=30, help="model turn budget")
     p.add_argument("--backoff", type=float, default=1.0, help="base retry delay in seconds (doubles each retry)")
     p.add_argument("--timeout", type=float, default=90.0, help="per tool-call timeout in seconds")
+    p.add_argument("--context-chars", type=int, default=60000,
+                   help="conversation budget; older tool outputs are compacted above it (use ~12000 for free tiers)")
     p.add_argument("--no-cache", action="store_true", help="clone into a fresh temp dir instead of reusing .cache/repos")
     p.add_argument("--quiet", action="store_true", help="suppress live trace on stdout")
     a = p.parse_args(argv)
@@ -48,7 +50,8 @@ def main(argv=None) -> int:
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
-    report = run_agent(a.goal, llm, registry, tracer, max_turns=a.max_turns, backoff=a.backoff, tool_timeout=a.timeout)
+    report = run_agent(a.goal, llm, registry, tracer, max_turns=a.max_turns, backoff=a.backoff, tool_timeout=a.timeout,
+                       context_chars=a.context_chars)
     tracer.close()
     (out / "report.json").write_text(json.dumps(report, indent=2, default=str))
     (out / "report.md").write_text(to_markdown(report) if "findings" in report or report["status"] == "needs_clarification"

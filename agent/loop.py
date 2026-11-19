@@ -57,7 +57,7 @@ def _meta_tools() -> list[dict]:
              "assumptions": {"type": "array", "items": {"type": "string"}},
              "revision_reason": {"type": "string", "description": "only when revising: what went wrong"}},
              "required": ["reasoning", "steps"]}},
-        {"name": "ask_user", "description": "Use ONLY if the goal is too ambiguous to act on (e.g. no repository given). Ends the run.",
+        {"name": "ask_user", "description": "Use ONLY if the goal does not say which repository to review. Never use it to ask for access or files: you already have tools that fetch any public repository. Ends the run.",
          "input_schema": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}},
         {"name": "submit_report", "description": "Submit the final structured report. Ends the run.",
          "input_schema": {"type": "object", "properties": REPORT_SCHEMA, "required": REQUIRED}},
@@ -124,7 +124,10 @@ class Agent:
         self.t.emit("info", f"Goal: {goal}")
         self.t.emit("info", f"Model: {self.llm.name}; tools: {', '.join(self.reg.names())}")
         t0 = time.monotonic()
-        msgs: list[dict] = [{"role": "user", "content": f"GOAL: {goal}"}]
+        catalog = "\n".join(f"- {t['name']}: {t['description']}" for t in self.reg.specs())
+        msgs: list[dict] = [{"role": "user", "content": f"GOAL: {goal}\n\nYou have live access to these tools; they become "
+                             f"callable right after make_plan (the repository is fetched on demand, nothing is needed "
+                             f"from the user):\n{catalog}"}]
         nudges, turn, final = 0, 0, None
         try:
             while turn < self.max_turns and final is None:

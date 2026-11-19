@@ -138,7 +138,8 @@ with st.sidebar:
                           placeholder="repo_list_files:timeout:2\nrepo_read_file:malformed:1\nrepo_read_file:rate_limit:1")
     max_turns = st.slider("Max model turns", 5, 60, 30)
     backoff = st.number_input("Retry backoff (s)", 0.0, 10.0, 1.0, 0.5)
-    context_chars = st.number_input("Context budget (chars)", 4000, 400000, 60000, 2000,
+    small_tier = provider == "openai" and "groq" in base_url
+    context_chars = st.number_input("Context budget (chars)", 4000, 400000, 12000 if small_tier else 60000, 2000,
                                     help="Older tool outputs are compacted above this. Use ~12000 on free tiers "
                                          "with small tokens-per-minute limits (e.g. Groq).")
 

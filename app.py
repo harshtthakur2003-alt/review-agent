@@ -138,6 +138,9 @@ with st.sidebar:
                           placeholder="repo_list_files:timeout:2\nrepo_read_file:malformed:1\nrepo_read_file:rate_limit:1")
     max_turns = st.slider("Max model turns", 5, 60, 30)
     backoff = st.number_input("Retry backoff (s)", 0.0, 10.0, 1.0, 0.5)
+    context_chars = st.number_input("Context budget (chars)", 4000, 400000, 60000, 2000,
+                                    help="Older tool outputs are compacted above this. Use ~12000 on free tiers "
+                                         "with small tokens-per-minute limits (e.g. Groq).")
 
 st.title("🔎 Autonomous Code Review Agent")
 st.caption("An LLM plans, chooses tools, recovers from failures and writes the report. No canned answers.")
@@ -186,7 +189,8 @@ with tab_run:
             st.error(f"Bad fault spec: {e}")
             st.stop()
         with st.spinner("Agent is working…"):
-            report = run_agent(goal, llm, registry, tracer, max_turns=max_turns, backoff=backoff, tool_timeout=90.0)
+            report = run_agent(goal, llm, registry, tracer, max_turns=max_turns, backoff=backoff, tool_timeout=90.0,
+                               context_chars=int(context_chars))
         tracer.close()
         (out / "report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
         md = (to_markdown(report) if "findings" in report or report.get("status") == "needs_clarification"

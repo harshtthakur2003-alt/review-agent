@@ -110,3 +110,19 @@ def test_provider_selection(monkeypatch):
     assert make_llm(None).name.startswith("openai-compatible")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "y")
     assert make_llm(None).name.startswith("anthropic")
+
+
+def test_rate_limit_hint_is_honoured(monkeypatch):
+    from agent.llm import _retry_after
+    waits = []
+    monkeypatch.setattr("agent.llm.time.sleep", waits.append)
+
+    class R:  # Groq-style 429 with a hint in the body
+        status_code, headers, text = 429, {}, "Rate limit reached ... Please try again in 7.5s. Need more tokens?"
+        def json(self):
+            return {}
+    assert _retry_after(R()) == 7.5
+    calls = iter([R(), FakeResp(200, {"content": [{"type": "text", "text": "ok"}], "usage": {}})])
+    monkeypatch.setattr("agent.llm.requests.post", lambda *a, **k: next(calls))
+    assert AnthropicLLM(api_key="k").complete("s", MSGS[:1], TOOLS).text == "ok"
+    assert waits == [8.0]

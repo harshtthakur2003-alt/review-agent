@@ -190,3 +190,24 @@ def test_request_too_large_shrinks_context_and_retries(make_env):
     rep = run_agent("review acme/widgets", TooLargeOnce(), reg, tr, backoff=0, context_chars=60000)
     assert rep["status"] == "success"
     assert any("too large" in e["message"] for e in tr.events if e["kind"] == "recover")
+
+
+def test_invalid_tool_call_from_provider_is_retried(make_env):
+    from agent.models import LLMError
+    reg, tr = make_env()
+    inner = PolicyLLM(happy)
+
+    class BadCallOnce:
+        name = "fake-tool-use-failed"
+        failed = False
+
+        def complete(self, system, messages, tools):
+            if not self.failed and len(messages) > 5:
+                self.failed = True
+                raise LLMError('HTTP 400: {"error":{"message":"Tool call validation failed: attempted to call tool '
+                               '\'json\' which was not in request.tools","code":"tool_use_failed"}}')
+            return inner.complete(system, messages, tools)
+
+    rep = run_agent("review acme/widgets", BadCallOnce(), reg, tr, backoff=0)
+    assert rep["status"] == "success"
+    assert any("invalid tool call" in e["message"] for e in tr.events if e["kind"] == "recover")

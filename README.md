@@ -4,6 +4,20 @@ Give it a goal such as *"Review the code quality of https://github.com/psf/reque
 A language model **plans, chooses tools one step at a time, reads real results, recovers from failures and
 writes the final structured report**. Repositories are fetched live at run time; no dataset is bundled.
 
+**Live demo:** https://hu8xpys5rhw3dzprmepu9x.streamlit.app (bring your own API key: paste it in the sidebar;
+it is used only for that session and never stored).
+
+| Your key | Sidebar settings |
+|---|---|
+| OpenAI | Provider `openai`, Base URL `https://api.openai.com/v1`, click **Fetch models**, pick e.g. `gpt-4.1` |
+| Anthropic | Provider `anthropic`, model e.g. `claude-sonnet-5-5` |
+| Gemini | Provider `openai`, Base URL `https://generativelanguage.googleapis.com/v1beta/openai`, **Fetch models** |
+| Groq (free) | Provider `openai`, Base URL `https://api.groq.com/openai/v1`, **Fetch models**, pick `openai/gpt-oss-120b` |
+
+Strong tool-calling models (GPT-4.1, Claude Sonnet) give the best reviews. Free tiers work but are slower: the
+agent waits out rate limits, shrinks its context when a request is too large and asks the model to redo
+malformed tool calls (all visible as `FIX` lines in the trace).
+
 ![architecture](docs/architecture.svg)
 
 ## What is (and is not) hard-coded
@@ -68,6 +82,9 @@ Pick the provider/model and paste the key in the sidebar, type a goal and press 
 findings (evidence + suggested fix), recoveries, assumptions and limitations. Faults can be injected from the
 sidebar. The **Saved runs** tab browses every run in `examples/` and `runs/`. The UI calls the same `run_agent`
 loop as the CLI; it adds no logic of its own.
+
+Deployed on Streamlit Community Cloud from this repo (`app.py`; `packages.txt` installs `git`, which the repo tools
+need). CLI equivalent of the context setting: `--context-chars 12000` for small free tiers.
 
 ## Tests (offline, ~1s)
 

@@ -56,6 +56,19 @@ loop-guard) and `DONE` lines. Outputs go to `--out` (default `runs/latest/`): `r
 `trace.jsonl`, `transcript.txt`. Exit code: 0 success/partial, 1 failed/needs_clarification, 2 setup error.
 Other flags: `--max-turns`, `--backoff`, `--timeout`, `--no-cache`, `--quiet`.
 
+### Web UI (Streamlit)
+
+```bash
+pip install streamlit
+streamlit run app.py          # opens http://localhost:8501
+```
+
+Pick the provider/model and paste the key in the sidebar, type a goal and press **Run agent**: the agent's trace
+(plan, tool calls, failures, recoveries) streams live, then the model-written report is shown with score,
+findings (evidence + suggested fix), recoveries, assumptions and limitations. Faults can be injected from the
+sidebar. The **Saved runs** tab browses every run in `examples/` and `runs/`. The UI calls the same `run_agent`
+loop as the CLI; it adds no logic of its own.
+
 ## Tests (offline, ~1s)
 
 ```bash
@@ -80,6 +93,7 @@ agent/llm.py       Anthropic + OpenAI-compatible adapters behind one interface (
 agent/report.py    report schema (given to the model), validation, markdown rendering
 agent/tools/       repo_info/search/list/read/grep, analyze_python_file (AST), calculator, registry
 agent/faults.py    deliberate failure injection      agent/trace.py   event tracing
+app.py             Streamlit web UI (live trace + rendered report + saved-run browser)
 tests/             19 offline tests (see above)  docs/architecture.svg
 ```
 

@@ -166,3 +166,27 @@ def test_context_compaction_keeps_recent_tool_outputs(make_env):
     contents = [m["results"][0]["content"] for m in msgs[1:]]
     assert contents[0].startswith("[compacted") and contents[1].startswith("[compacted")
     assert contents[2] == big and contents[3] == big          # two most recent tool turns untouched
+
+
+def test_request_too_large_shrinks_context_and_retries(make_env):
+    from agent.models import LLMError
+    reg, tr = make_env()
+    inner = PolicyLLM(happy)
+    sizes = []
+
+    class TooLargeOnce:
+        name = "fake-413"
+
+        def __init__(self):
+            self.failed = False
+
+        def complete(self, system, messages, tools):
+            sizes.append(sum(len(json.dumps(m, default=str)) for m in messages))
+            if len(messages) > 3 and not self.failed:
+                self.failed = True
+                raise LLMError("HTTP 413: Request too large for model, please reduce your message size")
+            return inner.complete(system, messages, tools)
+
+    rep = run_agent("review acme/widgets", TooLargeOnce(), reg, tr, backoff=0, context_chars=60000)
+    assert rep["status"] == "success"
+    assert any("too large" in e["message"] for e in tr.events if e["kind"] == "recover")

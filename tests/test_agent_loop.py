@@ -152,3 +152,17 @@ def test_validate_report():
     assert validate_report({**GOOD_REPORT, "quality_score": 150})
     assert validate_report({**GOOD_REPORT, "findings": [{"severity": "huge"}]})
     assert validate_report({**GOOD_REPORT, "findings": []})
+
+
+def test_context_compaction_keeps_recent_tool_outputs(make_env):
+    from agent.loop import Agent
+    reg, tr = make_env()
+    agent = Agent(PolicyLLM(happy), reg, tr, context_chars=4000)
+    big = "x" * 3000
+    msgs = [{"role": "user", "content": "GOAL"}] + [
+        {"role": "tool", "results": [{"id": str(i), "name": "repo_read_file", "content": big, "is_error": False}]}
+        for i in range(4)]
+    agent._compact(msgs)
+    contents = [m["results"][0]["content"] for m in msgs[1:]]
+    assert contents[0].startswith("[compacted") and contents[1].startswith("[compacted")
+    assert contents[2] == big and contents[3] == big          # two most recent tool turns untouched

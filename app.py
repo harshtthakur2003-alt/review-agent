@@ -17,7 +17,7 @@ import requests
 import streamlit as st
 
 from agent.faults import inject_faults
-from agent.llm import make_llm
+from agent.llm import AnthropicLLM, OpenAICompatLLM
 from agent.loop import run_agent
 from agent.models import LLMError
 from agent.report import to_markdown
@@ -111,7 +111,7 @@ with st.sidebar:
     if provider == "openai":
         base_url = st.text_input("Base URL", os.environ.get("OPENAI_BASE_URL",
                                  "https://generativelanguage.googleapis.com/v1beta/openai"))
-        key = st.text_input("API key", os.environ.get("OPENAI_API_KEY", ""), type="password")
+        key = st.text_input("API key", "", type="password")
         if st.button("🔄 Fetch models available to this key", disabled=not key):
             try:
                 r = requests.get(base_url.rstrip("/") + "/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
@@ -130,8 +130,8 @@ with st.sidebar:
     else:
         base_url = ""
         model = st.text_input("Model", os.environ.get("AGENT_MODEL", "claude-sonnet-5-5"))
-        key = st.text_input("API key", os.environ.get("ANTHROPIC_API_KEY", ""), type="password")
-    st.caption("The key stays in this local process's environment; it is never written to disk.")
+        key = st.text_input("API key", "", type="password")
+    st.caption("Your key is used only for this browser session: it is not stored, logged or shared.")
 
     st.header("🧪 Robustness")
     faults = st.text_area("Inject faults (one TOOL:MODE[:N] per line)", "",
@@ -165,13 +165,11 @@ with tab_run:
         if not key:
             st.error("Enter an API key in the sidebar first.")
             st.stop()
-        if provider == "openai":
-            os.environ["OPENAI_API_KEY"] = key
-            os.environ["OPENAI_BASE_URL"] = base_url
-        else:
-            os.environ["ANTHROPIC_API_KEY"] = key
+        # The key is passed straight to the client object for this session only. It is never put in
+        # os.environ, because a hosted Streamlit app shares one process between all visitors.
         try:
-            llm = make_llm(provider, model or None)
+            llm = (OpenAICompatLLM(model or None, api_key=key, base_url=base_url) if provider == "openai"
+                   else AnthropicLLM(model or None, api_key=key))
         except LLMError as e:
             st.error(str(e))
             st.stop()

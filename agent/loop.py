@@ -33,6 +33,8 @@ How you must work:
 5. If the goal does not identify a repository you can review, call ask_user instead of guessing.
 6. Finish by calling submit_report exactly once. Be honest: if something could not be done, use status 'partial' or
    'failed', and list what went wrong in 'recoveries' and 'limitations'. Record guesses as 'assumptions'.
+Older tool outputs may later be shortened to save context, so when you see important evidence, note the path:line
+and what it shows in your own message before moving on.
 Do not write the report as plain text; the structured submit_report call is the deliverable."""
 
 MAX_RESULT_CHARS = 7000
@@ -64,8 +66,10 @@ def _meta_tools() -> list[dict]:
 
 class Agent:
     def __init__(self, llm: LLMClient, registry: ToolRegistry, tracer: Tracer, max_turns: int = 30,
-                 backoff: float = 1.0, tool_timeout: float = 90.0, retries: int = 3):
+                 backoff: float = 1.0, tool_timeout: float = 90.0, retries: int = 3, context_chars: int = 60000):
         self.llm, self.reg, self.t = llm, registry, tracer
+        self.context_chars = max(4000, context_chars)
+        self.result_chars = min(MAX_RESULT_CHARS, self.context_chars // 3)
         self.max_turns, self.backoff, self.tool_timeout, self.retries = max_turns, backoff, tool_timeout, retries
         self.meta = _meta_tools()
         self.plans: list[dict] = []
@@ -103,8 +107,8 @@ class Agent:
                 raise ToolError("invalid_input", "your tool arguments were not valid JSON; resend the call")
             out, _ = self._run_tool(call.name, call.args)
             text = json.dumps(out, default=str)
-            if len(text) > MAX_RESULT_CHARS:
-                text = text[:MAX_RESULT_CHARS] + f'... [truncated {len(text) - MAX_RESULT_CHARS} chars; narrow your request]'
+            if len(text) > self.result_chars:
+                text = text[:self.result_chars] + f'... [truncated {len(text) - self.result_chars} chars; narrow your request]'
             return {"id": call.id, "name": call.name, "content": text, "is_error": False}
         except ToolError as e:
             self._failed_sigs[sig] = self._failed_sigs.get(sig, 0) + 1
@@ -136,6 +140,7 @@ class Agent:
                     tools = [m for m in self.meta if m["name"] in ("make_plan", "ask_user")]   # plan before acting
                 else:
                     tools = self.reg.specs() + self.meta
+                self._compact(msgs)
                 turn_out = self.llm.complete(SYSTEM_PROMPT, msgs, tools)
                 self.usage["in"] += turn_out.usage.get("in", 0)
                 self.usage["out"] += turn_out.usage.get("out", 0)
@@ -188,6 +193,25 @@ class Agent:
                         "tool_log": [{"tool": e["tool"], "args": e["args"], "status": e["status"], "attempts": e["attempts"],
                                       "error": e["error"]} for e in self.tool_log]}
         return final
+
+    def _compact(self, msgs: list) -> None:
+        """Keep the conversation inside the context budget (small free-tier limits) by shortening the oldest tool
+        outputs first. The two most recent tool turns are never touched."""
+        size = lambda: sum(len(json.dumps(m, default=str)) for m in msgs)
+        if size() <= self.context_chars:
+            return
+        shrunk = 0
+        tool_turns = [m for m in msgs if m.get("role") == "tool"][:-2]
+        for m in tool_turns:
+            for r in m["results"]:
+                c = str(r.get("content", ""))
+                if len(c) > 300 and not c.startswith("[compacted"):
+                    r["content"] = f"[compacted to save context; first 250 chars] {c[:250]}"
+                    shrunk += 1
+            if size() <= self.context_chars:
+                break
+        if shrunk:
+            self.t.emit("recover", f"context over budget: compacted {shrunk} old tool output(s)")
 
     def _on_plan(self, c) -> dict:
         a = c.args

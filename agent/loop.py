@@ -143,8 +143,7 @@ class Agent:
                     tools = [m for m in self.meta if m["name"] in ("make_plan", "ask_user")]   # plan before acting
                 else:
                     tools = self.reg.specs() + self.meta
-                self._compact(msgs)
-                turn_out = self.llm.complete(SYSTEM_PROMPT, msgs, tools)
+                turn_out = self._complete(msgs, tools)
                 self.usage["in"] += turn_out.usage.get("in", 0)
                 self.usage["out"] += turn_out.usage.get("out", 0)
                 if turn_out.text.strip():
@@ -197,24 +196,47 @@ class Agent:
                                       "error": e["error"]} for e in self.tool_log]}
         return final
 
-    def _compact(self, msgs: list) -> None:
+    def _complete(self, msgs: list, tools: list):
+        """Call the model inside the context budget. If the provider still says the request is too large
+        (HTTP 413 / context or token-per-minute limit), shrink the budget and compact harder, then retry."""
+        for attempt in range(4):
+            self._compact(msgs, keep_recent=2 if attempt == 0 else 0, stub=250 if attempt < 2 else 120)
+            try:
+                return self.llm.complete(SYSTEM_PROMPT, msgs, tools)
+            except LLMError as e:
+                text = str(e).lower()
+                if attempt == 3 or not ("413" in text or "too large" in text or "context length" in text
+                                        or "maximum context" in text or "reduce" in text):
+                    raise
+                self.context_chars = max(3000, int(self.context_chars * 0.5))
+                self.result_chars = min(self.result_chars, self.context_chars // 3)
+                self.t.emit("recover", f"model said the request is too large; shrinking context budget to "
+                                       f"{self.context_chars} chars and retrying")
+
+    def _compact(self, msgs: list, keep_recent: int = 2, stub: int = 250) -> None:
         """Keep the conversation inside the context budget (small free-tier limits) by shortening the oldest tool
-        outputs first. The two most recent tool turns are never touched."""
+        outputs first, then long assistant messages. The newest `keep_recent` tool turns are touched last."""
         size = lambda: sum(len(json.dumps(m, default=str)) for m in msgs)
         if size() <= self.context_chars:
             return
         shrunk = 0
-        tool_turns = [m for m in msgs if m.get("role") == "tool"][:-2]
-        for m in tool_turns:
+        tool_turns = [m for m in msgs if m.get("role") == "tool"]
+        ordered = tool_turns[:-keep_recent] if keep_recent else tool_turns
+        for m in ordered:
             for r in m["results"]:
                 c = str(r.get("content", ""))
-                if len(c) > 300 and not c.startswith("[compacted"):
-                    r["content"] = f"[compacted to save context; first 250 chars] {c[:250]}"
+                if len(c) > stub + 60:
+                    r["content"] = f"[compacted to save context] {c[:stub]}"
                     shrunk += 1
             if size() <= self.context_chars:
                 break
+        if size() > self.context_chars:
+            for m in msgs[1:-1]:
+                if m.get("role") == "assistant" and len(m.get("text") or "") > stub + 60:
+                    m["text"] = m["text"][:stub] + " [compacted]"
+                    shrunk += 1
         if shrunk:
-            self.t.emit("recover", f"context over budget: compacted {shrunk} old tool output(s)")
+            self.t.emit("recover", f"context over budget: compacted {shrunk} old message(s)")
 
     def _on_plan(self, c) -> dict:
         a = c.args

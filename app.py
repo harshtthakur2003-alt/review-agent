@@ -13,6 +13,7 @@ import os
 import tempfile
 from pathlib import Path
 
+import requests
 import streamlit as st
 
 from agent.faults import inject_faults
@@ -110,8 +111,22 @@ with st.sidebar:
     if provider == "openai":
         base_url = st.text_input("Base URL", os.environ.get("OPENAI_BASE_URL",
                                  "https://generativelanguage.googleapis.com/v1beta/openai"))
-        model = st.text_input("Model", os.environ.get("AGENT_MODEL", "gemini-2.5-flash"))
         key = st.text_input("API key", os.environ.get("OPENAI_API_KEY", ""), type="password")
+        if st.button("🔄 Fetch models available to this key", disabled=not key):
+            try:
+                r = requests.get(base_url.rstrip("/") + "/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
+                r.raise_for_status()
+                ids = sorted(m.get("id", "").removeprefix("models/") for m in r.json().get("data", []))
+                st.session_state["models"] = [i for i in ids if i]
+            except Exception as e:  # show the provider's message instead of crashing the UI
+                st.session_state["models"] = []
+                st.error(f"Could not list models: {e}")
+        models = st.session_state.get("models") or []
+        if models:
+            model = st.selectbox("Model", models)
+        else:
+            model = st.text_input("Model", os.environ.get("AGENT_MODEL", ""),
+                                  help="Click 'Fetch models' above to pick from the models your key can use")
     else:
         base_url = ""
         model = st.text_input("Model", os.environ.get("AGENT_MODEL", "claude-sonnet-5-5"))

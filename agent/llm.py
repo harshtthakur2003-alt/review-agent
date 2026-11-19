@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -46,11 +47,27 @@ class LLMClient:
         raise NotImplementedError
 
 
-def _post_with_retry(url: str, headers: dict, payload: dict, timeout: float, attempts: int = 5) -> dict:
-    """Resilience for the model API itself: backoff on 429/5xx/network errors, fail fast on 4xx."""
-    delay = 1.5
+def _retry_after(r) -> Optional[float]:
+    """Seconds the provider asked us to wait (Retry-After header or 'try again in 1.3s' in the body)."""
+    h = (getattr(r, "headers", None) or {}).get("retry-after")
+    try:
+        if h:
+            return float(h)
+    except ValueError:
+        pass
+    m = re.search(r"try again in ([0-9.]+)\s*(ms|s)", r.text or "", re.I)
+    if m:
+        return float(m.group(1)) / (1000 if m.group(2).lower() == "ms" else 1)
+    return None
+
+
+def _post_with_retry(url: str, headers: dict, payload: dict, timeout: float, attempts: int = 8) -> dict:
+    """Resilience for the model API itself: backoff on 429/5xx/network errors (honouring the provider's
+    Retry-After hint, so free-tier tokens-per-minute limits are waited out), fail fast on other 4xx."""
+    delay = 2.0
     last = ""
     for n in range(1, attempts + 1):
+        wait = delay
         try:
             r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         except requests.RequestException as e:
@@ -61,9 +78,12 @@ def _post_with_retry(url: str, headers: dict, payload: dict, timeout: float, att
             last = f"HTTP {r.status_code}: {r.text[:300]}"
             if r.status_code not in (408, 409, 425, 429, 500, 502, 503, 504, 529):
                 raise LLMError(last)
+            hint = _retry_after(r)
+            if hint is not None:
+                wait = max(wait, hint + 0.5)
         if n < attempts:
-            time.sleep(delay)
-            delay *= 2
+            time.sleep(min(wait, 60.0))
+            delay = min(delay * 2, 30.0)
     raise LLMError(f"model API failed after {attempts} attempts ({last})")
 
 
